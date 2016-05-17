@@ -1,0 +1,160 @@
+
+Reproducible Research: Peer Assessment 1
+========================================
+
+Kenneth Richlin
+output: 
+  html_document:
+    keep_md: true
+
+
+## Loading and preprocessing the data
+
+```{r}
+
+setwd("C:/Users/Kenneth/Desktop/RR_PA_1-master")
+
+activityData <- read.csv(file = "activity.csv", sep =",", colClasses=c("integer","Date","integer"))
+str(activityData)
+summary(activityData)
+
+```
+
+
+## What is mean total number of steps taken per day?
+
+We can use tapply on the sum function to determine the mean number of steps taken per day.
+
+```{r}
+
+totalSteps <- tapply(activityData$steps, activityData$date, sum, na.rm=TRUE)
+stepMean <- mean(totalSteps)
+stepMean
+
+stepMedian <- median(totalSteps)
+stepMedian
+
+```
+
+### Create a histogram of the total number of steps taken each day
+
+```{r}
+
+hist(totalSteps, breaks = 12,
+     xlab = "Number of Steps Per Day",
+     ylab = "Frequency of Occurance in Data",
+     main = "Histogram of total steps per day")
+
+abline(v=stepMean, col="green", lwd ="4")
+abline(v=stepMedian, col="orange", lwd ="4")
+legend(x = "topright", legend = c("mean", "median"), col=c("green","orange"), lwd = 4)
+
+```
+
+### Calculate and report the mean and median of the total number of steps taken per day
+
+The mean number of steps taken each day is: `r stepMean`.
+the median number of steps taken each day is: `r stepMedian`.
+
+## What is the average daily activity pattern?
+
+Make a time series plot (ie, type = "l") of the 5 minute interval (x axis), and the average number of steps taken, averaged across all days (y-axis)
+
+To get average steps per day, we aggregate the data by date
+
+```{r}
+
+library(plyr)
+dailyActivity <- ddply(activityData, .(interval), summarize, steps = mean(steps, na.rm = TRUE))
+with(dailyActivity, plot(interval, steps, type = "l"))
+
+```
+
+Which 5 minute interval, on average across all the days in the dataset, contains the maxiumum number of steps?
+
+```{r}
+
+maxSteps <- dailyActivity[which.max(dailyActivity$steps),]$interval
+
+```
+
+The maximum number of steps taken in a single 5 minute interval is `r maxSteps'.
+
+
+## Imputing missing values
+
+Find out how many data points are NA
+
+
+```{r}
+
+sum(is.na(activityData$steps))
+
+```
+
+
+Devise a strategy for filling in all of the missing values in the dataset.  We will substitute in the Average Daily Steps calculated above to fill the place of missing  values.  This will probalby have a smoothing effect on the data.
+
+```{r}
+
+
+stepValues <- data.frame(activityData$steps)
+stepValues [is.na(stepValues),] <- ceiling(tapply(X=activityData$steps,INDEX=activityData$interval,FUN=mean,na.rm=TRUE))
+
+newData <- cbind(stepValues, activityData[,2:3])
+colnames(newData) <- c("Steps", "Date", "Interval")
+
+summary(newData)
+
+
+```
+
+Show the new imputed data in a histogram, including mean and median.  Same method as we used above, on the new dataframe.
+
+```{r}
+
+totalSteps2 <- tapply(newData$Steps, newData$Date, sum, na.rm=TRUE)
+stepMean2 <- mean(totalSteps2)
+stepMean2
+
+stepMedian2 <- median(totalSteps2)
+stepMedian2
+
+```
+
+### Create a histogram of the total number of steps taken each day
+
+```{r}
+
+hist(totalSteps2, breaks = 12,
+     xlab = "Number of Steps Per Day",
+     ylab = "Frequency of Occurance in Data",
+     main = "Histogram of total steps per day")
+
+abline(v=stepMean2, col="green", lwd ="5")
+abline(v=stepMedian2, col="orange", lwd ="3")
+legend(x = "topright", legend = c("mean", "median"), col=c("green","orange"), lwd = 4)
+
+```
+
+
+Since we injected the mean many times over into the new data, the mean is now the most common entry, and dominates the median, skewing that particular metric.  Aside from that, the data does look to be smoothed out in some places.  It looks like the overall variance and standard deviation has decreased, with the first sigma falling in a much narrower range than previously observed.
+
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+
+newData$Weekend <- weekdays(newData$Date) == "Saturday" | weekdays(newData$Date) == "Sunday"
+
+newData$Weekend <- factor(newData$Weekend, levels = c(F, T), labels = c("Weekday", "Weekend"))
+
+activity <- ddply(newData, .(Interval, Weekend), summarize, steps = mean(Steps, na.rm = TRUE))
+
+library(lattice)
+xyplot(steps ~ Interval | Weekend, activity, type = "l", layout = c(1, 2), ylab = "Number of Steps", xlab = "Interval", main = "Weekend vs. Weekday activity patterns")
+
+```
+
+It looks like the activity is different on weekends.  Both series show a burst early in the day, however on weekdays the activity dies down at 10 AM.  This effect is much less pronounced on weekends, where activity seems to be more evenly spread throughout the day.
+
